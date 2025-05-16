@@ -96,7 +96,6 @@ int main(void)
   MX_TIM2_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
-  __HAL_UART_ENABLE_IT(&huart1, UART_IT_IDLE);
   HAL_TIM_Base_Start_IT(&htim2);
   HAL_UART_Receive_IT(&huart1, rx_byte, 1);
   /* USER CODE END 2 */
@@ -289,16 +288,11 @@ void function() {
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     if (huart->Instance == USART1) {
     	super_puper_buffer_dlya_hranenia_soobschenii[i]=rx_byte[0];
-    	/*if(rx_byte[0]=='.'){
+    	if(rx_byte[0]=='.'){
     		function();
     	}else{
-    	i+=1;}*/
-    	HAL_UART_Receive_IT(&huart1, rx_byte, 1);
-    	if (__HAL_UART_GET_FLAG(&huart1, !UART_FLAG_RXNE)) {
-    		function();
-    	}else{
-        	i+=1;}
-
+    	i+=1;}
+        HAL_UART_Receive_IT(&huart1, rx_byte, 1);
     }
 }
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
@@ -308,16 +302,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         	        HAL_UART_Transmit_IT(&huart1, message, sizeof(message)); // Отправляем данные через USART1
         	        GPIOC -> ODR ^= (1<<13);
         }
-}
-void USART1_IRQHandler(void) {
-    // Проверка на IDLE
-    if (__HAL_UART_GET_FLAG(&huart1, UART_FLAG_IDLE)) {
-        __HAL_UART_CLEAR_IDLEFLAG(&huart1);  // Сбросить флаг
-        if (i > 0) {
-            function();  // Обработать данные
-        }
-    }
-    HAL_UART_IRQHandler(&huart1);
 }
 /* USER CODE END 4 */
 
