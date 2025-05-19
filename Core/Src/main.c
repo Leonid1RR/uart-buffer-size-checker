@@ -18,7 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include <string.h>
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -46,7 +46,7 @@ UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
 uint8_t rx_byte[1];
-uint8_t super_puper_buffer_dlya_hranenia_soobschenii[255];
+uint8_t buffer[256];
 uint8_t message[]="hi bro!\n\r";
 /* USER CODE END PV */
 
@@ -259,11 +259,91 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 int i = 0;
-void function() {
-    super_puper_buffer_dlya_hranenia_soobschenii[i] = '\0';  // Завершаем строку
+
+uint8_t model[64];
+uint8_t year[64];
+uint8_t vin[64];
+uint8_t speed[64];
+
+//                         key
+uint8_t model[64] = {0};//| + |
+uint8_t year[64] = {0};// | - |
+uint8_t vin[64] = {0};//  | @ |
+uint8_t speed[64] = {0};//| $ |
+//end of message key:     | ^ |
+int mode = 5; // 1-model, 2-year, 3-vin, 4-speed, 5-nothing
+
+void car() {
+    int model_pos = 0, year_pos = 0, vin_pos = 0, speed_pos = 0;
+
+    for(int a = 0; a < sizeof(buffer); a++) {
+        // Проверка на разделители
+        if(buffer[a] == '+') {
+            mode = 1;
+            continue;
+        } else if(buffer[a] == '-') {
+            mode = 2;
+            continue;
+        } else if(buffer[a] == '@') {
+            mode = 3;
+            continue;
+        } else if(buffer[a] == '$') {
+            mode = 4;
+            continue;
+        }
+
+        // Запись в соответствующий массив
+        switch(mode) {
+            case 1:
+                if(model_pos < sizeof(model)-1)
+                    model[model_pos++] = buffer[a];
+                break;
+            case 2:
+                if(year_pos < sizeof(year)-1)
+                    year[year_pos++] = buffer[a];
+                break;
+            case 3:
+                if(vin_pos < sizeof(vin)-1)
+                    vin[vin_pos++] = buffer[a];
+                break;
+            case 4:
+                if(speed_pos < sizeof(speed)-1)
+                    speed[speed_pos++] = buffer[a];
+                break;
+        }
+    }
+
+    // Добавляем нулевые терминаторы
+    model[model_pos] = '\0';
+    year[year_pos] = '\0';
+    vin[vin_pos] = '\0';
+    speed[speed_pos] = '\0';
+    mode = 5;
+}
+void sendback(){
+	i = 0;
+    memset(model, 0, sizeof(model));
+    memset(year, 0, sizeof(year));
+    memset(vin, 0, sizeof(vin));
+    memset(speed, 0, sizeof(speed));
+	char output_buffer[512];
+	car();
+	//сбор данных в char output_buffer
+    snprintf(output_buffer, sizeof(output_buffer),
+        "model: %s\r\n"
+        "speed: %s\r\n"
+        "year: %s\r\n"
+        "vin: %s\r\n",
+        model, speed, year, vin);
+   // int len = strlen(output_buffer)
+	HAL_UART_Transmit_IT(&huart1, (uint8_t*)output_buffer, strlen(output_buffer));
+}
+
+/*void function() {
+    buffer[i] = '\0';  // Завершаем строку
     i = 0;
 
-    size_t size = strlen((char*)super_puper_buffer_dlya_hranenia_soobschenii);
+    size_t size = strlen((char*)buffer);
     uint8_t percent = (uint8_t)(((float)size / 255.0f) * 100.0f + 0.5f);
 
     // Буфер для итогового сообщения
@@ -275,22 +355,22 @@ void function() {
         sizeof(output_buffer),
         "buffer is %u%% full\r\ncontent: %s\r\n",
         percent,
-        super_puper_buffer_dlya_hranenia_soobschenii
+        buffer
     );
 
     // Отправляем всё одной командой
     HAL_UART_Transmit_IT(&huart1, (uint8_t*)output_buffer, len);
 
     // Очищаем содержимое
-    memset(super_puper_buffer_dlya_hranenia_soobschenii, 0, sizeof(super_puper_buffer_dlya_hranenia_soobschenii));
-}
+    memset(buffer, 0, sizeof(buffer));
+}*/
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     if (huart->Instance == USART1) {
-    	super_puper_buffer_dlya_hranenia_soobschenii[i]=rx_byte[0];
-    	if(rx_byte[0]=='.'){
-    		function();
-    	}else{
+
+    	if(rx_byte[0]=='^'){
+    		sendback();
+    	}else{buffer[i]=rx_byte[0];
     	i+=1;}
         HAL_UART_Receive_IT(&huart1, rx_byte, 1);
     }
@@ -299,7 +379,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
         if(htim->Instance == TIM2) //check if the interrupt comes from TIM2
         {
-        	        HAL_UART_Transmit_IT(&huart1, message, sizeof(message)); // Отправляем данные через USART1
+        	uint8_t hi="enter vin, year, model and speed of car\r\nkeys:\r\n+model+\r\n-year-\r\n@vin@\r\n$speed$\r\nuse ^ to and message";
+        	        HAL_UART_Transmit_IT(&huart1, hi, sizeof(hi)); // Отправляем данные через USART1
+        	        HAL_TIM_Base_Stop_IT(&htim2);
         	        GPIOC -> ODR ^= (1<<13);
         }
 }
